@@ -4,7 +4,7 @@
 #include "ib.h"
 
 int main(int argc, char **argv) {
-  // IbDeviceHandle ib_device("ubverbs0");
+  IbvDeviceContextByName ib_context("ubverbs0");
 
   struct ibv_context *con = NULL;
   IbvAllocPd pd(con);

@@ -1,6 +1,5 @@
 #ifndef IB_H_
 #define IB_H_
-
 #include <memory>
 #include <functional>
 #include <type_traits>
@@ -9,37 +8,6 @@
 
 #include "ib_traits.h"
 #include "ib_utils.h"
-
-class IbDeviceHandle {
- public:
-  IbDeviceHandle(const char *name);
-  std::unique_ptr<struct ibv_context, void_deleter<ibv_context>> ibv_context_;
-};
-
-class IbPdHandle {
- public:
-  IbPdHandle(const IbDeviceHandle&);
-  std::unique_ptr<struct ibv_pd, void_deleter<ibv_pd>> ibv_pd_;
-};
-
-class IbMr {
- public:
-  IbMr(const IbPdHandle&, void*, size_t, int);
-  std::unique_ptr<struct ibv_mr, void_deleter<ibv_mr>> ibv_mr_;
-};
-
-
-
-template<typename FuncType>
-struct func_traits {
-  using ReturnType = struct ibv_pd*;
-};
-
-template<typename Ret, typename... Args>
-struct func_traits<Ret(Args...)> {
- public:
-  using ReturnType = Ret;
-};
 
 template<typename Factory, Factory f, typename Deleter, Deleter d,
   typename = typename fnp_traits<decltype(f)>::PackedArgs>
@@ -61,9 +29,21 @@ class IbResource <Factory, f, Deleter, d, Pack<Args...>> {
   }
 };
 
+struct ibv_context *ibv_device_context_by_name_(const char *name);
+
+using IbvDeviceContextByName = IbResource<
+                      decltype(&ibv_device_context_by_name_), &ibv_device_context_by_name_,
+                      decltype(&ibv_close_device), &ibv_close_device
+                      >;
+
 using IbvAllocPd = IbResource<
                       decltype(&ibv_alloc_pd), &ibv_alloc_pd,
                       decltype(&ibv_dealloc_pd), &ibv_dealloc_pd
+                      >;
+
+using IbvRegMr = IbResource<
+                      decltype(&ibv_reg_mr), &ibv_reg_mr,
+                      decltype(&ibv_dereg_mr), &ibv_dereg_mr
                       >;
 
 #endif  // IB_H_
