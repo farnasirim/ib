@@ -4,12 +4,7 @@
 #include "ib.h"
 
 int main(int argc, char **argv) {
-  IbvDeviceContextByName ib_context("ubverbs0");
-
-  struct ibv_context *con = NULL;
-  IbvAllocPd pd(con);
-  struct ibv_pd *ib_pd = pd.get();
-
-  std::cout << (ib_pd == NULL) << std::endl;
+  IbvDeviceContextByName ib_context("mlx5_1");
+  IbvAllocPd pd(ib_context.get());
   return 0;
 }
