@@ -24,6 +24,6 @@ HEADER_FLAGS=-I.
 
 hw: $(OBJS) $(CXX_OBJS)
 	$(CXX) $(C_FLAGS) $(HEADER_FLAGS) -o $@ $^ $(LIBS)
-	
+
 clean:
 	rm -rf *.o hw
