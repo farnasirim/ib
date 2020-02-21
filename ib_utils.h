@@ -24,7 +24,7 @@ using ResourceFactory= std::function<Res*(Args...)>;
 template<typename Res, typename ...Args>
 ResourceFactory<Res, Args...> factory_wrapper(Res *(*orig_factory)(Args...), std::string msg) {
   return [orig_factory, msg_capture = std::move(msg)](Args&&... args) -> Res* {
-    Res *ret = orig_factory(std::forward<Args...>(args...));
+    Res *ret = orig_factory(args...);
     if(ret == NULL) {
       perror(msg_capture.c_str());
       std::abort();

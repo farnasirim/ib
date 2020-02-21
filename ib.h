@@ -22,7 +22,7 @@ class IbResource <Factory, f, Deleter, d, Pack<Args...>> {
   std::unique_ptr<ResourceType, VoidDeleter<ResourceType>> ptr_;
 
   IbResource(Args... args): ptr_(
-      factory_wrapper(f, FnpTraits<Factory, f>::name())(std::forward<Args...>(args)...),
+      factory_wrapper(f, FnpTraits<Factory, f>::name())(args...),
       int_deleter_wrapper(d, FnpTraits<Deleter, d>::name())) {
   }
 
