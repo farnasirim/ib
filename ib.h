@@ -10,6 +10,9 @@
 #include "fnp_types.h"
 #include "ib_utils.h"
 
+template<typename... T>
+struct Typer;
+
 template<typename Factory, Factory f, typename Deleter, Deleter d,
   typename = typename FnpTypes<decltype(f)>::PackedArgs>
 class IbResource;
@@ -21,8 +24,16 @@ class IbResource <Factory, f, Deleter, d, Pack<Args...>> {
 
   std::unique_ptr<ResourceType, VoidDeleter<ResourceType>> ptr_;
 
-  IbResource(Args... args): ptr_(
-      factory_wrapper(f, FnpTraits<Factory, f>::name())(args...),
+  template<typename... FuncArgs,
+    typename = std::enable_if_t<
+      IsSameNoCVR<
+          std::tuple<Args...>, std::tuple<FuncArgs...>
+        >::value
+      >
+  >
+  IbResource(FuncArgs&&... args): ptr_(
+      factory_wrapper(f, FnpTraits<Factory, f>::name())(
+        std::forward<FuncArgs>(args)...),
       int_deleter_wrapper(d, FnpTraits<Deleter, d>::name())) {
   }
 
