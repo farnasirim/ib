@@ -13,6 +13,7 @@ struct ibv_context *ibv_device_context_by_name_(const char *name) {
   while(*current_device) {
     if(!strcmp((*current_device)->name, name)) {
       struct ibv_context *maybe_device_ctx = ibv_open_device(*current_device);
+      ibv_free_device_list(ibv_dev);
       if(maybe_device_ctx == NULL) {
         perror("ibv_open_device");
         std::abort();
@@ -21,6 +22,7 @@ struct ibv_context *ibv_device_context_by_name_(const char *name) {
     }
     current_device ++;
   }
+  ibv_free_device_list(ibv_dev);
   assert(false);
   return NULL;
 }

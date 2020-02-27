@@ -2,15 +2,15 @@
 
 all: clean hw
 
-LIBS=-pthread -lrdmacm -libverbs
+LIBS=-pthread -lrdmacm -libverbs -lmemcached
 
 CC=gcc
-C_FLAGS=-Wall -Werror -O2
+C_FLAGS=-Wall -O2 # -Werror
 C_SRCS=
 C_OBJS=$(C_SRCS:.c=.o)
 
 CXX=g++
-CXX_FLAGS=-Wall -Werror -O2
+CXX_FLAGS=-Wall -O2 # -Werror
 CXX_SRCS=main.cc ib.cc
 CXX_OBJS=$(CXX_SRCS:.cc=.o)
 
