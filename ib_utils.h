@@ -30,7 +30,7 @@ ResourceFactory<Res, Args...> factory_wrapper(Res *(*orig_factory)(Args...), std
 //    std::cout << "                        ctoring: " << msg_capture << "   : ";
     if(ret == NULL) {
 //      std::cout << "failed!" << std::endl;
-//      perror(msg_capture.c_str());
+      perror(msg_capture.c_str());
       std::abort();
     }
 //    std::cout << "success" << std::endl;

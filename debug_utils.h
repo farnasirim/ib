@@ -6,3 +6,6 @@
   std::cout << (x) << std::endl; \
   std::cin >> _; \
 } while(false);
+
+template<typename... Args>
+struct Typer;

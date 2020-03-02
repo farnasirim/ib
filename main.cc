@@ -16,7 +16,9 @@
 
 #include "discovery.h"
 #include "ib.h"
+#include "ib_container.h"
 #include "logging.h"
+#include "modify_qp.h"
 
 #include "debug_utils.h"
 
@@ -112,24 +114,32 @@ int main(int argc, char **argv) {
   deb(remote_qp.lid);
   std::cout << std::endl;
 
-  {
+  // {
 
-    std::cout << "doing init" << std::endl;
-    struct ibv_qp_attr attr = {};
-    int mask = IBV_QP_STATE
-      | IBV_QP_PKEY_INDEX
-      | IBV_QP_PORT
-      | IBV_QP_ACCESS_FLAGS;
+  //   std::cout << "doing init" << std::endl;
+  //   struct ibv_qp_attr attr = {};
+  //   int mask = IBV_QP_STATE
+  //     | IBV_QP_PKEY_INDEX
+  //     | IBV_QP_PORT
+  //     | IBV_QP_ACCESS_FLAGS;
 
-    attr.qp_state = IBV_QPS_INIT;
-    attr.pkey_index = 0;
-    attr.port_num = 1; // 1-based up to phys_port_cnt
-    attr.qp_access_flags = IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC;
+  //   attr.qp_state = IBV_QPS_INIT;
+  //   attr.pkey_index = 0;
+  //   attr.port_num = 1; // 1-based up to phys_port_cnt
+  //   attr.qp_access_flags = IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC;
 
-    int ret = ibv_modify_qp(qp.get(), &attr, mask);
-    perror("init");
-    assert_p(ret == 0, "init");
-  }
+  //   int ret = ibv_modify_qp(qp.get(), &attr, mask);
+  //   perror("init");
+  //   assert_p(ret == 0, "init");
+  // }
+  qp_attr::modify_qp(qp,
+      qp_attr::qp_state(IBV_QPS_INIT));
+      // qp_attr::pkey_index(0),
+      // qp_attr::port_num(1),
+      // qp_attr::qp_access_flags(IBV_ACCESS_REMOTE_READ
+      //   | IBV_ACCESS_REMOTE_WRITE
+      //   | IBV_ACCESS_REMOTE_ATOMIC)
+      // );
 
   struct payload recv_buffer;
   {
@@ -227,6 +237,16 @@ int main(int argc, char **argv) {
   }
 
   std::cout << "all done" << std::endl;
+
+  IbQueryDevice qd(ib_context.get());
+  // std::cout << qd.get().max_qp << std::endl;
+
+  auto f = []() {return 1234; };
+  int a = 123;
+  // constexpr auto cc = f(at, 2);
+
+
+  //modify_qp(qp);
 
   std::this_thread::sleep_for(std::chrono::seconds(1));
 

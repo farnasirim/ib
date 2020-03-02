@@ -10,9 +10,6 @@
 #include "fnp_types.h"
 #include "ib_utils.h"
 
-template<typename... T>
-struct Typer;
-
 template<typename Factory, Factory f, typename Deleter, Deleter d,
   typename = typename FnpTypes<decltype(f)>::PackedArgs>
 class IbResource;
@@ -36,6 +33,10 @@ class IbResource <Factory, f, Deleter, d, Pack<Args...>> {
         // TODO: explicitly static cast the FuncArgs to Args
         std::forward<FuncArgs>(args)...),
       int_deleter_wrapper(d, FnpTraits<Deleter, d>::name())) {
+  }
+
+  operator ResourceType*() const {
+    return ptr_.get();
   }
 
   ResourceType *get() const {
