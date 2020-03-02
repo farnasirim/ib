@@ -114,73 +114,60 @@ int main(int argc, char **argv) {
   deb(remote_qp.lid);
   std::cout << std::endl;
 
-  // {
-
-  //   std::cout << "doing init" << std::endl;
-  //   struct ibv_qp_attr attr = {};
-  //   int mask = IBV_QP_STATE
-  //     | IBV_QP_PKEY_INDEX
-  //     | IBV_QP_PORT
-  //     | IBV_QP_ACCESS_FLAGS;
-
-  //   attr.qp_state = IBV_QPS_INIT;
-  //   attr.pkey_index = 0;
-  //   attr.port_num = 1; // 1-based up to phys_port_cnt
-  //   attr.qp_access_flags = IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_ATOMIC;
-
-  //   int ret = ibv_modify_qp(qp.get(), &attr, mask);
-  //   perror("init");
-  //   assert_p(ret == 0, "init");
-  // }
-  qp_attr::modify_qp(qp,
-      qp_attr::qp_state(IBV_QPS_INIT));
-      // qp_attr::pkey_index(0),
-      // qp_attr::port_num(1),
-      // qp_attr::qp_access_flags(IBV_ACCESS_REMOTE_READ
-      //   | IBV_ACCESS_REMOTE_WRITE
-      //   | IBV_ACCESS_REMOTE_ATOMIC)
-      // );
-
-  struct payload recv_buffer;
   {
-    struct ibv_recv_wr *bad_wr = NULL;
-    int recv_size = sizeof(recv_buffer);
+    int ret = qp_attr::modify_qp(qp,
+     qp_attr::qp_state(IBV_QPS_INIT),
+     qp_attr::pkey_index(0),
+     qp_attr::port_num(1),
+     qp_attr::qp_access_flags(IBV_ACCESS_REMOTE_READ
+       | IBV_ACCESS_REMOTE_WRITE
+       | IBV_ACCESS_REMOTE_ATOMIC)
+     );
 
-    struct ibv_sge sge = {};
-    sge.length = recv_size;
-    sge.addr = reinterpret_cast<uintptr_t>(&recv_buffer);
-    sge.lkey = mr.get()->lkey;
-
-    std::uint64_t wrid = machine_id + 12345;
-
-    struct ibv_recv_wr recv_wr = {};
-    recv_wr.next = NULL;
-    recv_wr.num_sge = 1;
-    recv_wr.sg_list = &sge;
-    recv_wr.wr_id = wrid;
-
-    int ret = ibv_post_recv(qp.get(), &recv_wr, &bad_wr);
-    assert_p(ret == 0, "ibv_post_recv");
+    perror("init");
+    assert_p(ret == 0, "init");
   }
 
-  {
-    struct ibv_qp_attr qp_attr = {};
-    qp_attr.qp_state = IBV_QPS_RTR;
-    qp_attr.path_mtu = IBV_MTU_256;
-    qp_attr.dest_qp_num = remote_qp.qp_num;
-    qp_attr.rq_psn = 0;
-    qp_attr.max_dest_rd_atomic = 16;
-    qp_attr.min_rnr_timer = 12;
-    qp_attr.ah_attr.is_global = 0;
-    qp_attr.ah_attr.dlid = remote_qp.lid;
-    qp_attr.ah_attr.sl = 0;
-    qp_attr.ah_attr.src_path_bits = 0;
-    qp_attr.ah_attr.port_num = 1;
+  // struct payload recv_buffer;
+  // {
+  //   struct ibv_recv_wr *bad_wr = NULL;
+  //   int recv_size = sizeof(recv_buffer);
 
-    int ret = ibv_modify_qp(qp.get(), &qp_attr,
-                        IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU |
-                            IBV_QP_DEST_QPN | IBV_QP_RQ_PSN |
-                            IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER);
+  //   struct ibv_sge sge = {};
+  //   sge.length = recv_size;
+  //   sge.addr = reinterpret_cast<uintptr_t>(&recv_buffer);
+  //   sge.lkey = mr.get()->lkey;
+
+  //   std::uint64_t wrid = machine_id + 12345;
+
+  //   struct ibv_recv_wr recv_wr = {};
+  //   recv_wr.next = NULL;
+  //   recv_wr.num_sge = 1;
+  //   recv_wr.sg_list = &sge;
+  //   recv_wr.wr_id = wrid;
+
+  //   int ret = ibv_post_recv(qp.get(), &recv_wr, &bad_wr);
+  //   assert_p(ret == 0, "ibv_post_recv");
+  // }
+
+  {
+    struct ibv_ah_attr ah_attrs = {};
+    ah_attrs.is_global = 0;
+    ah_attrs.dlid = remote_qp.lid;
+    ah_attrs.sl = 0;
+    ah_attrs.src_path_bits = 0;
+    ah_attrs.port_num = 1;
+
+    int ret = modify_qp(qp,
+        qp_attr::qp_state(IBV_QPS_RTR),
+        qp_attr::path_mtu(IBV_MTU_256),
+        qp_attr::dest_qp_num(remote_qp.qp_num),
+        qp_attr::rq_psn(0),
+        qp_attr::max_dest_rd_atomic(16),
+        qp_attr::min_rnr_timer(12),
+        qp_attr::ah_attr(ah_attrs)
+        );
+
     assert_p(ret == 0, "rtr");
   }
 
@@ -215,13 +202,6 @@ int main(int argc, char **argv) {
 
   // prompt("rts?");
   {
-  int mask = IBV_QP_STATE |
-    IBV_QP_SQ_PSN |
-    IBV_QP_MAX_QP_RD_ATOMIC |
-    IBV_QP_RETRY_CNT |
-    IBV_QP_RNR_RETRY |
-    IBV_QP_TIMEOUT;
-
     std::cout << "doing rts" << std::endl;
     struct ibv_qp_attr attr = {};
     attr.qp_state = IBV_QPS_RTS;
@@ -231,7 +211,15 @@ int main(int argc, char **argv) {
     attr.sq_psn = 0;
     attr.max_rd_atomic = 1;
 
-    int ret = ibv_modify_qp(qp.get(), &attr, mask);
+    int ret = modify_qp(qp,
+        qp_attr::qp_state(IBV_QPS_RTS),
+        qp_attr::max_rd_atomic(1),
+        qp_attr::retry_cnt(7),
+        qp_attr::rnr_retry(7),
+        qp_attr::sq_psn(0),
+        qp_attr::timeout(0x12),
+        qp_attr::max_rd_atomic(1)
+      );
 
     assert_p(ret == 0, "rts");
   }
