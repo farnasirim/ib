@@ -38,13 +38,17 @@ int main(int argc, char **argv) {
   IbvDeviceContextByName ib_context("mlx5_1");
   IbvAllocPd pd(ib_context.get());
 
-  size_t num_messages = 128;
-  size_t msg_size = 256;
-  void *mem = static_cast<char *>(memalign(4096, msg_size * num_messages));
+  // size_t num_messages = 128;
+  // size_t msg_size = 256;
+  // size_t mem_size = msg_size * num_messages;
+  size_t amount_data_bytes_to_req = 100; // 10GB
+  size_t to_alloc = amount_data_bytes_to_req + 10;
+  char *mem = static_cast<char *>(memalign(4096, to_alloc));
+  int *p = reinterpret_cast<decltype(p)>(mem);
   int flags =
       IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ | IBV_ACCESS_REMOTE_WRITE;
 
-  IbvRegMr mr(pd.get(), mem, msg_size, flags);
+  IbvRegMr mr(pd.get(), mem, to_alloc, flags);
 
   ibv_device_attr dev_attrs = {};
   {
@@ -128,28 +132,6 @@ int main(int argc, char **argv) {
     assert_p(ret == 0, "init");
   }
 
-  // struct payload recv_buffer;
-  // {
-  //   struct ibv_recv_wr *bad_wr = NULL;
-  //   int recv_size = sizeof(recv_buffer);
-
-  //   struct ibv_sge sge = {};
-  //   sge.length = recv_size;
-  //   sge.addr = reinterpret_cast<uintptr_t>(&recv_buffer);
-  //   sge.lkey = mr.get()->lkey;
-
-  //   std::uint64_t wrid = machine_id + 12345;
-
-  //   struct ibv_recv_wr recv_wr = {};
-  //   recv_wr.next = NULL;
-  //   recv_wr.num_sge = 1;
-  //   recv_wr.sg_list = &sge;
-  //   recv_wr.wr_id = wrid;
-
-  //   int ret = ibv_post_recv(qp.get(), &recv_wr, &bad_wr);
-  //   assert_p(ret == 0, "ibv_post_recv");
-  // }
-
   {
     struct ibv_ah_attr ah_attrs = {};
     ah_attrs.is_global = 0;
@@ -160,7 +142,7 @@ int main(int argc, char **argv) {
 
     int ret = modify_qp(qp,
         qp_attr::qp_state(IBV_QPS_RTR),
-        qp_attr::path_mtu(IBV_MTU_256),
+        qp_attr::path_mtu(IBV_MTU_4096),
         qp_attr::dest_qp_num(remote_qp.qp_num),
         qp_attr::rq_psn(0),
         qp_attr::max_dest_rd_atomic(16),
@@ -171,45 +153,8 @@ int main(int argc, char **argv) {
     assert_p(ret == 0, "rtr");
   }
 
-  // {
-  //   int mask = IBV_QP_STATE
-  //     | IBV_QP_AV
-  //     | IBV_QP_PATH_MTU
-  //     | IBV_QP_DEST_QPN
-  //     | IBV_QP_RQ_PSN
-  //     | IBV_QP_MAX_DEST_RD_ATOMIC
-  //     | IBV_QP_MIN_RNR_TIMER;
-
-  //   std::cout << "doing rtr" << std::endl;
-  //   struct ibv_qp_attr attr;
-
-  //   attr.qp_state = IBV_QPS_RTR;
-  //   attr.path_mtu = IBV_MTU_4096;
-  //   attr.dest_qp_num = remote_qp.qp_num;
-  //   attr.rq_psn = 0;
-  //   attr.ah_attr.is_global = 0;
-  //   attr.ah_attr.dlid = remote_qp.lid;
-  //   attr.ah_attr.sl = 0;
-  //   attr.ah_attr.src_path_bits = 0;
-  //   attr.ah_attr.port_num = 1; // again, 1-based
-  //   attr.max_dest_rd_atomic = 1;
-  //   attr.min_rnr_timer = 12;
-
-  //   int ret = ibv_modify_qp(qp.get(), &attr, mask);
-  //   perror("rtr");
-  //   assert(ret == 0);
-  // }
-
-  // prompt("rts?");
   {
     std::cout << "doing rts" << std::endl;
-    struct ibv_qp_attr attr = {};
-    attr.qp_state = IBV_QPS_RTS;
-    attr.max_rd_atomic = 1;
-    attr.retry_cnt =7;
-    attr.rnr_retry = 7;
-    attr.sq_psn = 0;
-    attr.max_rd_atomic = 1;
 
     int ret = modify_qp(qp,
         qp_attr::qp_state(IBV_QPS_RTS),
@@ -229,12 +174,193 @@ int main(int argc, char **argv) {
   IbQueryDevice qd(ib_context.get());
   // std::cout << qd.get().max_qp << std::endl;
 
-  auto f = []() {return 1234; };
-  int a = 123;
   // constexpr auto cc = f(at, 2);
 
+  char *payload = (char *) mem + 10;
+  assert_p(payload != NULL, "payload alloc");
 
-  //modify_qp(qp);
+  std::chrono::system_clock::time_point then;
+
+
+  if(machine_id == 0) {
+    size_t msg_size_to_req = 100;
+    size_t num_messages_to_request = amount_data_bytes_to_req / msg_size_to_req;
+    const size_t num_concurr = 1;
+
+    std::cout << " ------------ in server" << std::endl;
+    // server
+    // tell start
+    *p = msg_size_to_req;
+
+    {
+    struct ibv_sge sge = {};
+    sge.lkey = mr->lkey;
+    sge.addr = reinterpret_cast<uint64_t>(mem);
+    sge.length = sizeof (*p);
+
+    struct ibv_send_wr *bad_wr;
+    struct ibv_send_wr this_wr = {};
+    this_wr.wr_id = 1212;
+    this_wr.num_sge = 1;
+    this_wr.sg_list = &sge;
+    this_wr.opcode = IBV_WR_SEND_WITH_IMM;
+    this_wr.send_flags = IBV_SEND_SIGNALED;
+    this_wr.imm_data = htonl(912999);
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    int ret = ibv_post_send(qp, &this_wr, &bad_wr);
+    assert_p(ret >= 0, "polling");
+    deb(*p);
+    }
+
+    struct ibv_wc completions[num_concurr];
+    while(true) {
+      int ret = ibv_poll_cq(cq, 1, completions);
+      if(ret > 0) {
+        assert_p(completions[0].status == 0, "ibv_poll_cq");
+        then = std::chrono::system_clock::now();
+        break;
+      }
+    }
+    std::cout << "signaled" << std::endl;
+
+    size_t current_posted = 0;
+    char *last_addr = payload;
+    int ret = ibv_poll_cq(cq, num_concurr, completions);
+    deb(ret);
+    deb(num_messages_to_request);
+    int done = 0;
+    //num_messages_to_request --;
+    while(num_messages_to_request) {
+      // std::cout << "here" << std::endl;
+      int ret = ibv_poll_cq(cq, num_concurr, completions);
+      if(ret > 0) {
+        std::cout << "poll suc" << std::endl;
+        for(int i = 0; i < ret; i++) {
+          assert_p(completions[i].status == 0, "ibv_poll_cq");
+        }
+      }
+      assert_p(ret >= 0, "ret < 0 incorrectly");
+      num_messages_to_request -= ret;
+      current_posted -= ret;
+      done += ret;
+      while (current_posted < num_concurr && num_messages_to_request > current_posted) {
+        current_posted += 1;
+        struct ibv_sge sge = {};
+        sge.lkey = mr->lkey;
+        sge.addr = reinterpret_cast<uint64_t>(last_addr);
+        sge.length = msg_size_to_req;
+
+        last_addr += msg_size_to_req;
+
+        struct ibv_recv_wr *bad_wr;
+        struct ibv_recv_wr this_wr = {};
+        this_wr.wr_id = 1212;
+        this_wr.num_sge = 1;
+        this_wr.sg_list = &sge;
+
+        int ret = ibv_post_recv(qp, &this_wr, &bad_wr);
+        assert_p(ret == 0, "ibv_post_recv");
+      }
+    }
+    deb(done);
+
+
+    for(long long i = 0; i < (long long) to_alloc; i++) {
+      std::cout << (int) mem[i] << " ";
+    }
+    std::cout << std::endl;
+
+  } else {
+    struct ibv_sge sge = {};
+    sge.lkey = mr->lkey;
+    sge.addr = reinterpret_cast<uint64_t>(mem);
+    sge.length = sizeof (*p);
+
+    struct ibv_recv_wr *bad_wr;
+    struct ibv_recv_wr this_wr = {};
+    this_wr.wr_id = 1212;
+    this_wr.num_sge = 1;
+    this_wr.sg_list = &sge;
+
+    int ret = ibv_post_recv(qp, &this_wr, &bad_wr);
+
+    assert_p(ret == 0, "ibv_post_recv");
+
+    struct ibv_wc completions[1];
+    while(true) {
+      int ret = ibv_poll_cq(cq, 1, completions);
+      assert_p(ret >= 0, "ibv_poll_cq");
+      if(ret > 0) {
+        assert_p(completions[0].status == 0, "ibv_poll_cq");
+        then = std::chrono::system_clock::now();
+        break;
+      }
+    }
+    deb(amount_data_bytes_to_req);
+    deb(*p);
+    deb(amount_data_bytes_to_req/(*p));
+    auto last_addr = payload;
+
+    deb((char*)last_addr - (char *)p);
+
+    size_t nums = amount_data_bytes_to_req/(*p);
+    //nums --;
+    size_t i;
+
+    for(long long i = 10; i < (long long) to_alloc; i++) {
+      mem[i] = i % 256;
+    }
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    for(i = 0; i < nums; i++) {
+
+      struct ibv_sge sge = {};
+      sge.lkey = mr->lkey;
+      sge.addr = reinterpret_cast<uint64_t>(last_addr);
+      // deb(sge.addr);
+      // deb(reinterpret_cast<uint64_t>(mem));
+      // deb(reinterpret_cast<uint64_t>((char *) mem + amount_data_bytes_to_req + 10) - sge.addr);
+      last_addr += *p;
+      deb(*p);
+      deb((long long) *(p) - 1);
+      sge.length = *p;
+      // deb(*p);
+      //
+      /*
+      // */
+
+      struct ibv_send_wr *bad_wr;
+      struct ibv_send_wr this_wr = {};
+      this_wr.wr_id = 1212;
+      this_wr.num_sge = 1;
+      this_wr.sg_list = &sge;
+      this_wr.opcode = IBV_WR_SEND_WITH_IMM;
+      this_wr.send_flags = IBV_SEND_SIGNALED;
+      this_wr.imm_data = htonl(912999);
+
+      int ret = ibv_post_send(qp, &this_wr, &bad_wr);
+      struct ibv_wc comp;
+      int r;
+      while((r = ibv_poll_cq(cq, 1, &comp)) == 0) {  }
+      assert_p(r > 0, "poll");
+
+      assert_p(ret == 0, "send");
+    }
+    deb(i);
+    for(long long i = 0; i < (long long) to_alloc; i++) {
+      std::cout << (int) mem[i] << " ";
+    }
+    std::cout << std::endl;
+  }
+
+  auto x = std::chrono::system_clock::now() - then;
+  auto mics = std::chrono::nanoseconds(x).count()/1000.0;
+  auto dpus = amount_data_bytes_to_req/mics;
+  auto mpus = (amount_data_bytes_to_req / *p) / mics;
+
+  deb(mics/1e6);
+  deb(dpus);
+  deb(mpus);
 
   std::this_thread::sleep_for(std::chrono::seconds(1));
 

@@ -39,6 +39,10 @@ class IbResource <Factory, f, Deleter, d, Pack<Args...>> {
     return ptr_.get();
   }
 
+  ResourceType *operator->() {
+    return ptr_.get();
+  }
+
   ResourceType *get() const {
     return ptr_.get();
   }
